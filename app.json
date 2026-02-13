@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Authenticator",
+    "slug": "Authenticator",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D0D0F"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0D0D0F"
+      },
+      "edgeToEdgeEnabled": true,
+      "minSdkVersion": 36,
+      "targetSdkVersion": 54,
+      "package": "com.shonanalyst.Authenticator"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
