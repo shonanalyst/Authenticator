@@ -5,6 +5,7 @@ import { OtpDisplay } from './OtpDisplay';
 import { CountdownTimer } from './CountdownTimer';
 import { IssuerLabel } from './IssuerLabel';
 import { useTotp } from '../hooks/useTotp';
+import { useTimer } from '../contexts/TimerContext';
 import { ColorScheme } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 
@@ -21,7 +22,8 @@ export function AuthenticatorCard({
   account,
   colors,
 }: AuthenticatorCardProps) {
-  const { code, secondsRemaining, progress } = useTotp(secret);
+  const { unixTime, secondsRemaining, progress } = useTimer();
+  const code = useTotp(secret, unixTime);
 
   return (
     <View
