@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { OtpAuthParams } from '../types/account';
@@ -17,6 +17,13 @@ export function QrScannerModal({ visible, onScanned, onClose, colors }: QrScanne
   const [permission, requestPermission] = useCameraPermissions();
   const [error, setError] = useState<string | null>(null);
   const scannedRef = useRef(false);
+
+  useEffect(() => {
+    if (visible) {
+      scannedRef.current = false;
+      setError(null);
+    }
+  }, [visible]);
 
   const handleBarcodeScanned = ({ data }: { data: string }) => {
     if (scannedRef.current) return;

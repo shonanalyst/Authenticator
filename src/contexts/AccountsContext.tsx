@@ -2,7 +2,7 @@ import React, { createContext, useContext, useReducer, useCallback, useEffect, u
 import * as ExpoCrypto from 'expo-crypto';
 import { Account, OtpAuthParams } from '../types/account';
 import { encryptSecret } from '../crypto/encryption';
-import { ensureUMK } from '../crypto/keyManager';
+import { ensureUMK, retrieveUMK } from '../crypto/keyManager';
 import { loadAccounts, saveAccounts } from '../storage/accountStorage';
 
 interface AccountsState {
@@ -14,7 +14,10 @@ interface AccountsState {
 type AccountsAction =
   | { type: 'INIT'; payload: { accounts: Account[]; umk: Uint8Array } }
   | { type: 'ADD_ACCOUNT'; payload: Account }
-  | { type: 'REMOVE_ACCOUNT'; payload: string };
+  | { type: 'REMOVE_ACCOUNT'; payload: string }
+  | { type: 'REPLACE_ACCOUNTS'; payload: Account[] }
+  | { type: 'CLEAR_UMK' }
+  | { type: 'SET_UMK'; payload: Uint8Array };
 
 function accountsReducer(state: AccountsState, action: AccountsAction): AccountsState {
   switch (action.type) {
@@ -24,6 +27,12 @@ function accountsReducer(state: AccountsState, action: AccountsAction): Accounts
       return { ...state, accounts: [action.payload, ...state.accounts] };
     case 'REMOVE_ACCOUNT':
       return { ...state, accounts: state.accounts.filter(a => a.id !== action.payload) };
+    case 'REPLACE_ACCOUNTS':
+      return { ...state, accounts: action.payload };
+    case 'CLEAR_UMK':
+      return { ...state, umk: null };
+    case 'SET_UMK':
+      return { ...state, umk: action.payload };
     default:
       return state;
   }
@@ -35,6 +44,9 @@ interface AccountsContextValue {
   umk: Uint8Array | null;
   addAccount: (params: OtpAuthParams) => Promise<void>;
   removeAccount: (id: string) => Promise<void>;
+  replaceAccounts: (accounts: Account[]) => Promise<void>;
+  clearUMK: () => void;
+  reloadUMK: () => Promise<void>;
 }
 
 const AccountsContext = createContext<AccountsContextValue>({
@@ -43,24 +55,10 @@ const AccountsContext = createContext<AccountsContextValue>({
   umk: null,
   addAccount: async () => {},
   removeAccount: async () => {},
+  replaceAccounts: async () => {},
+  clearUMK: () => {},
+  reloadUMK: async () => {},
 });
-
-const DEMO_SECRET = 'JBSWY3DPEHPK3PXP';
-
-function createEncryptedDemoAccount(umk: Uint8Array): Account {
-  const encrypted = encryptSecret(DEMO_SECRET, umk);
-  return {
-    id: 'demo',
-    encryptedSecret: encrypted.ciphertext,
-    iv: encrypted.iv,
-    authTag: encrypted.authTag,
-    issuer: 'Acme Corp',
-    account: 'user@example.com',
-    algorithm: 'sha1',
-    digits: 6,
-    period: 30,
-  };
-}
 
 export function AccountsProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(accountsReducer, {
@@ -80,14 +78,7 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
       const storedAccounts = await loadAccounts();
       const umk = await ensureUMK(storedAccounts.length > 0);
 
-      let accounts: Account[];
-      if (storedAccounts.length > 0) {
-        accounts = storedAccounts;
-      } else {
-        const demo = createEncryptedDemoAccount(umk);
-        accounts = [demo];
-        await saveAccounts(accounts);
-      }
+      const accounts = storedAccounts;
 
       if (!cancelled) {
         dispatch({ type: 'INIT', payload: { accounts, umk } });
@@ -119,9 +110,23 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
     await saveAccounts([account, ...accountsRef.current]);
   }, [state.umk]);
 
+  const clearUMK = useCallback(() => {
+    dispatch({ type: 'CLEAR_UMK' });
+  }, []);
+
+  const reloadUMK = useCallback(async () => {
+    const umk = await retrieveUMK();
+    if (umk) dispatch({ type: 'SET_UMK', payload: umk });
+  }, []);
+
   const removeAccount = useCallback(async (id: string) => {
     dispatch({ type: 'REMOVE_ACCOUNT', payload: id });
     await saveAccounts(accountsRef.current.filter(a => a.id !== id));
+  }, []);
+
+  const replaceAccounts = useCallback(async (accounts: Account[]) => {
+    dispatch({ type: 'REPLACE_ACCOUNTS', payload: accounts });
+    await saveAccounts(accounts);
   }, []);
 
   return (
@@ -132,6 +137,9 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
         umk: state.umk,
         addAccount,
         removeAccount,
+        replaceAccounts,
+        clearUMK,
+        reloadUMK,
       }}
     >
       {children}

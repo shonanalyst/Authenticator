@@ -2,6 +2,7 @@ import { useColorScheme } from 'react-native';
 import { darkColors, lightColors, ColorScheme } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing } from '../theme/spacing';
+import { useThemeMode } from '../contexts/ThemeContext';
 
 interface AppTheme {
   colors: ColorScheme;
@@ -11,8 +12,13 @@ interface AppTheme {
 }
 
 export function useAppTheme(): AppTheme {
-  const scheme = useColorScheme();
-  const isDark = scheme !== 'light';
+  const systemScheme = useColorScheme();
+  const { themeMode } = useThemeMode();
+
+  const isDark =
+    themeMode === 'dark' ? true :
+    themeMode === 'light' ? false :
+    systemScheme !== 'light';
 
   return {
     colors: isDark ? darkColors : lightColors,

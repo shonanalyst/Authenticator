@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, Pressable, StyleSheet, Modal } from 'react-native';
 import { OtpAuthParams } from '../types/account';
 import { AuthenticatorCard } from './AuthenticatorCard';
 import { ColorScheme } from '../theme/colors';
@@ -8,7 +8,7 @@ import { spacing } from '../theme/spacing';
 interface AccountPreviewModalProps {
   visible: boolean;
   params: OtpAuthParams | null;
-  onConfirm: () => void;
+  onConfirm: (params: OtpAuthParams) => void;
   onCancel: () => void;
   colors: ColorScheme;
 }
@@ -20,7 +20,25 @@ export function AccountPreviewModal({
   onCancel,
   colors,
 }: AccountPreviewModalProps) {
+  const [editedIssuer, setEditedIssuer] = useState('');
+  const [editedAccount, setEditedAccount] = useState('');
+
+  useEffect(() => {
+    if (params) {
+      setEditedIssuer(params.issuer);
+      setEditedAccount(params.account);
+    }
+  }, [params]);
+
   if (!params) return null;
+
+  const handleConfirm = () => {
+    onConfirm({
+      ...params,
+      issuer: editedIssuer.trim() || params.issuer,
+      account: editedAccount.trim(),
+    });
+  };
 
   return (
     <Modal
@@ -37,10 +55,34 @@ export function AccountPreviewModal({
 
           <AuthenticatorCard
             secret={params.secret}
-            issuer={params.issuer}
-            account={params.account}
+            issuer={editedIssuer || params.issuer}
+            account={editedAccount}
             colors={colors}
           />
+
+          <View style={styles.fields}>
+            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Name</Text>
+            <TextInput
+              style={[styles.fieldInput, { color: colors.textPrimary, backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}
+              value={editedIssuer}
+              onChangeText={setEditedIssuer}
+              placeholder="Service name"
+              placeholderTextColor={colors.textSecondary}
+              autoCorrect={false}
+            />
+
+            <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: spacing.sm }]}>Account</Text>
+            <TextInput
+              style={[styles.fieldInput, { color: colors.textPrimary, backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}
+              value={editedAccount}
+              onChangeText={setEditedAccount}
+              placeholder="email@example.com"
+              placeholderTextColor={colors.textSecondary}
+              autoCorrect={false}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
 
           <View style={styles.actions}>
             <Pressable
@@ -53,7 +95,7 @@ export function AccountPreviewModal({
               <Text style={[styles.buttonText, { color: colors.textPrimary }]}>Cancel</Text>
             </Pressable>
             <Pressable
-              onPress={onConfirm}
+              onPress={handleConfirm}
               style={({ pressed }) => [
                 styles.button,
                 { backgroundColor: colors.accent, opacity: pressed ? 0.8 : 1 },
@@ -85,6 +127,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: spacing.lg,
+  },
+  fields: {
+    marginTop: spacing.lg,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6,
+    marginLeft: 4,
+  },
+  fieldInput: {
+    fontSize: 16,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.md,
+    borderRadius: 10,
+    borderWidth: 1,
   },
   actions: {
     flexDirection: 'row',
