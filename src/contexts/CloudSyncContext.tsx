@@ -13,6 +13,7 @@ import {
   loadStoredAuthState,
 } from '../cloud/googleAuth';
 import { performBackup, performRestore, checkBackupStatus } from '../cloud/syncOrchestrator';
+import { checkRootStatus } from '../security/rootDetection';
 import type { Account } from '../types/account';
 import type { SyncResult, BackupInfo } from '../cloud/syncOrchestrator';
 import {
@@ -40,6 +41,10 @@ interface CloudSyncContextValue {
   lastSyncTimestamp: number | null;
   syncError: string | null;
 
+  // Security state
+  isDeviceRooted: boolean;
+  isSecurityCheckComplete: boolean;
+
   // Actions
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -55,6 +60,8 @@ const CloudSyncContext = createContext<CloudSyncContextValue>({
   isSyncing: false,
   lastSyncTimestamp: null,
   syncError: null,
+  isDeviceRooted: false,
+  isSecurityCheckComplete: false,
   signIn: async () => {},
   signOut: async () => {},
   backup: async () => ({ success: false }),
@@ -74,6 +81,17 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTimestamp, setLastSyncTimestamp] = useState<number | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [isDeviceRooted, setIsDeviceRooted] = useState(false);
+  const [isSecurityCheckComplete, setIsSecurityCheckComplete] = useState(false);
+
+  // Check root status on mount
+  useEffect(() => {
+    (async () => {
+      const rooted = await checkRootStatus();
+      setIsDeviceRooted(rooted);
+      setIsSecurityCheckComplete(true);
+    })();
+  }, []);
 
   // Restore auth state on mount
   useEffect(() => {
@@ -93,6 +111,10 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
   // ── Actions ──
 
   const signIn = useCallback(async () => {
+    if (isDeviceRooted) {
+      setSyncError('Cloud sync is disabled on rooted devices for security.');
+      return;
+    }
     setSyncError(null);
     setIsAuthLoading(true);
     try {
@@ -150,7 +172,7 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsAuthLoading(false);
     }
-  }, []);
+  }, [isDeviceRooted]);
 
   const signOut = useCallback(async () => {
     setIsAuthLoading(true);
@@ -171,6 +193,9 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const backup = useCallback(async (): Promise<SyncResult> => {
+    if (isDeviceRooted) {
+      return { success: false, error: 'Cloud sync is disabled on rooted devices for security.' };
+    }
     if (isLocked || !umk) {
       return { success: false, error: 'App is locked. Unlock to sync.' };
     }
@@ -196,9 +221,12 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsSyncing(false);
     }
-  }, [isLocked, umk, isSignedIn, accounts]);
+  }, [isDeviceRooted, isLocked, umk, isSignedIn, accounts]);
 
   const restore = useCallback(async (): Promise<{ accounts: Account[]; timestamp: number }> => {
+    if (isDeviceRooted) {
+      throw new Error('Cloud sync is disabled on rooted devices for security.');
+    }
     if (isLocked || !umk) {
       throw new Error('App is locked. Unlock to restore.');
     }
@@ -219,7 +247,7 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsSyncing(false);
     }
-  }, [isLocked, umk, isSignedIn]);
+  }, [isDeviceRooted, isLocked, umk, isSignedIn]);
 
   const checkBackup = useCallback(async (): Promise<BackupInfo> => {
     if (!isSignedIn) return { exists: false };
@@ -235,6 +263,8 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
         isSyncing,
         lastSyncTimestamp,
         syncError,
+        isDeviceRooted,
+        isSecurityCheckComplete,
         signIn,
         signOut,
         backup,

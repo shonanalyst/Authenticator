@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, Switch, StyleSheet, Alert, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useAppTheme } from '../src/hooks/useAppTheme';
 import { useThemeMode } from '../src/contexts/ThemeContext';
 import { useSecurity } from '../src/contexts/SecurityContext';
@@ -28,6 +29,7 @@ export default function SettingsScreen() {
     isAuthLoading,
     isSyncing,
     syncError,
+    isDeviceRooted,
     signIn,
     signOut,
     backup,
@@ -35,9 +37,10 @@ export default function SettingsScreen() {
     checkBackup,
   } = useCloudSync();
 
+  const router = useRouter();
   const [showPinSetup, setShowPinSetup] = useState(false);
 
-  const syncDisabled = isLocked || isSyncing || isAuthLoading;
+  const syncDisabled = isLocked || isSyncing || isAuthLoading || isDeviceRooted;
 
   // ── Security Handlers ──
 
@@ -201,6 +204,18 @@ export default function SettingsScreen() {
         ) : null}
       </View>
 
+      {/* ── ROOT WARNING ── */}
+      {isDeviceRooted ? (
+        <View style={[styles.warningBanner, { backgroundColor: colors.warningDim, borderColor: colors.warning }]}>
+          <Text style={[styles.warningTitle, { color: colors.warning }]}>
+            Rooted Device Detected
+          </Text>
+          <Text style={[styles.warningText, { color: colors.textSecondary }]}>
+            Cloud sync is disabled for security. Local accounts remain encrypted and safe.
+          </Text>
+        </View>
+      ) : null}
+
       {/* ── CLOUD SYNC ── */}
       <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>CLOUD SYNC</Text>
       <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
@@ -320,6 +335,25 @@ export default function SettingsScreen() {
         ) : null}
       </View>
 
+      {/* ── ABOUT ── */}
+      <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>ABOUT</Text>
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
+        <Pressable
+          onPress={() => router.push('/privacy')}
+          style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <View style={styles.rowText}>
+            <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Privacy & Security</Text>
+            <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>
+              How your data is protected
+            </Text>
+          </View>
+          <Text style={[styles.chevron, { color: colors.textSecondary }]}>›</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.bottomSpacer} />
+
       <PinSetupModal
         visible={showPinSetup}
         onComplete={handlePinCreated}
@@ -373,5 +407,28 @@ const styles = StyleSheet.create({
   },
   disabledRow: {
     opacity: 0.4,
+  },
+  warningBanner: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.lg,
+    padding: spacing.md,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  warningTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  warningText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  chevron: {
+    fontSize: 22,
+    fontWeight: '300',
+  },
+  bottomSpacer: {
+    height: spacing.xxl,
   },
 });
