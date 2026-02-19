@@ -119,10 +119,12 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
   }, [clearUMK]);
 
-  // Auto-lock on app background/inactive
+  // Auto-lock on app background only (NOT inactive).
+  // On iOS, Face ID / Touch ID prompts cause a brief 'inactive' state.
+  // Locking on 'inactive' would cancel the biometric unlock mid-flight.
   useEffect(() => {
     const handleAppStateChange = (nextState: AppStateStatus) => {
-      if (nextState === 'background' || nextState === 'inactive') {
+      if (nextState === 'background') {
         lock();
       }
     };
@@ -235,23 +237,27 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
   const unlockWithBiometric = useCallback(async (): Promise<boolean> => {
     if (!stateRef.current.isBiometricEnabled) return false;
 
-    const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Unlock Authenticator',
-      fallbackLabel: 'Use PIN',
-      disableDeviceFallback: true,
-    });
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Unlock Authenticator',
+        fallbackLabel: 'Use PIN',
+        disableDeviceFallback: true,
+      });
 
-    if (result.success) {
-      await Promise.all([
-        reloadUMK(),
-        SecureStore.deleteItemAsync(LOCKOUT_UNTIL_KEY),
-        SecureStore.deleteItemAsync(FAILED_ATTEMPTS_KEY),
-      ]);
-      setState(s => ({ ...s, isLocked: false, failedAttempts: 0, lockUntil: null }));
-      return true;
+      if (result.success) {
+        await Promise.all([
+          reloadUMK(),
+          SecureStore.deleteItemAsync(LOCKOUT_UNTIL_KEY),
+          SecureStore.deleteItemAsync(FAILED_ATTEMPTS_KEY),
+        ]);
+        setState(s => ({ ...s, isLocked: false, failedAttempts: 0, lockUntil: null }));
+        return true;
+      }
+
+      return false;
+    } catch {
+      return false;
     }
-
-    return false;
   }, [reloadUMK]);
 
   return (

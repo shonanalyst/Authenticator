@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { GoogleSignin } from './googleSignInShim';
 import {
   GOOGLE_DISCOVERY,
   GOOGLE_ACCESS_TOKEN_KEY,

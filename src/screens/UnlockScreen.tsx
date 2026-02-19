@@ -88,7 +88,13 @@ export function UnlockScreen() {
   }, [pin, unlock]);
 
   const handleBiometric = useCallback(async () => {
-    await unlockWithBiometric();
+    if (biometricInProgress.current) return;
+    biometricInProgress.current = true;
+    try {
+      await unlockWithBiometric();
+    } finally {
+      biometricInProgress.current = false;
+    }
   }, [unlockWithBiometric]);
 
   const attemptsRemaining = MAX_ATTEMPTS - failedAttempts;

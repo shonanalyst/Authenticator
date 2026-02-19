@@ -3,7 +3,8 @@ import {
   GoogleSignin,
   isSuccessResponse,
   statusCodes,
-} from '@react-native-google-signin/google-signin';
+  isGoogleSignInAvailable,
+} from '../cloud/googleSignInShim';
 import { useAccounts } from './AccountsContext';
 import { useSecurity } from './SecurityContext';
 import {
@@ -21,12 +22,14 @@ import {
   GOOGLE_SCOPES,
 } from '../constants/cloudSync';
 
-// Configure Google Sign-In once at module level
-GoogleSignin.configure({
-  webClientId: GOOGLE_CLIENT_ID_WEB,
-  offlineAccess: true,
-  scopes: GOOGLE_SCOPES,
-});
+// Configure Google Sign-In once at module level (skip in Expo Go)
+if (isGoogleSignInAvailable) {
+  GoogleSignin.configure({
+    webClientId: GOOGLE_CLIENT_ID_WEB,
+    offlineAccess: true,
+    scopes: GOOGLE_SCOPES,
+  });
+}
 
 // ── Types ──
 

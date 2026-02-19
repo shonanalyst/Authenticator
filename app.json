@@ -14,7 +14,11 @@
       "backgroundColor": "#0D0D0F"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.shonanalyst.Authenticator",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Use Face ID to unlock the authenticator and access your accounts."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -37,7 +41,13 @@
           "root": "./app"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.1013609465371-2m34flvd86pd8i4hbasfad8007qj78jk"
+        }
+      ]
     ]
   }
 }
