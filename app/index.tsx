@@ -29,7 +29,7 @@ export default function AccountsScreen() {
   const navigation = useNavigation();
   const { accounts, addAccount, isLoading } = useAccounts();
   const { isPremium, FREE_ACCOUNT_LIMIT } = usePremium();
-  const { progress } = useTimer();
+  const { progress, secondsRemaining } = useTimer();
   const [modalState, setModalState] = useState<ModalState>('idle');
   const [scannedParams, setScannedParams] = useState<OtpAuthParams | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -117,11 +117,15 @@ export default function AccountsScreen() {
         />
       </View>
 
-      {/* Timer progress bar */}
-      <View style={[styles.timerTrack, { backgroundColor: colors.surfaceBorder }]}>
-        <View
-          style={[styles.timerBar, { width: timerWidth, backgroundColor: colors.accent }]}
-        />
+      {/* Timer bar — matches design */}
+      <View style={[styles.timerSection, { backgroundColor: colors.surface, borderBottomColor: colors.surfaceBorder }]}>
+        <View style={styles.timerRow}>
+          <Text style={[styles.timerLabel, { color: colors.textSecondary }]}>Refreshing in</Text>
+          <Text style={[styles.timerCount, { color: colors.textPrimary }]}>{secondsRemaining}s</Text>
+        </View>
+        <View style={[styles.timerTrack, { backgroundColor: colors.surfaceBorder }]}>
+          <View style={[styles.timerBar, { width: timerWidth, backgroundColor: colors.accent }]} />
+        </View>
       </View>
 
       {isLoading ? (
@@ -189,16 +193,33 @@ const styles = StyleSheet.create({
     fontSize: 15,
     height: '100%',
   },
+  timerSection: {
+    paddingHorizontal: spacing.md,
+    paddingTop: 10,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  timerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  timerLabel: {
+    fontSize: 13,
+  },
+  timerCount: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
   timerTrack: {
-    height: 3,
-    marginHorizontal: spacing.md,
-    borderRadius: 2,
+    height: 8,
+    borderRadius: 4,
     overflow: 'hidden',
-    marginBottom: spacing.xs,
   },
   timerBar: {
     height: '100%',
-    borderRadius: 2,
+    borderRadius: 4,
   },
   list: {
     paddingTop: spacing.sm,

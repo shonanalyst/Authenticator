@@ -4,5 +4,6 @@
     "strict": true,
     "baseUrl": "."
   },
-  "include": ["**/*.ts", "**/*.tsx"]
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["Authenticator App Design/**", "node_modules/**", ".worktrees/**"]
 }

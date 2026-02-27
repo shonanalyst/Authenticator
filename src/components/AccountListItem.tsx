@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, Vibration } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Dimensions, Vibration, Pressable } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -22,7 +23,7 @@ import { getServiceColor } from '../constants/serviceColors';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-const RING_SIZE = 36;
+const RING_SIZE = 32;
 const RING_STROKE = 2.5;
 const WARNING_THRESHOLD = 5;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -33,17 +34,37 @@ interface AccountListItemProps {
   colors: ColorScheme;
 }
 
-function formatCode(code: string): string {
-  if (code.length === 6) {
-    return `${code.slice(0, 3)} ${code.slice(3)}`;
-  }
-  return code;
+function CheckIcon() {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+      <Path d="M20 6L9 17l-5-5" stroke="#FFFFFF" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.912 4.895 3 6 3h8c1.105 0 2 .912 2 2.036v1.866"
+        stroke="rgba(255,255,255,0.7)"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+      />
+      <Path
+        d="M18 8H10c-1.105 0-2 .895-2 2v10c0 1.105.895 2 2 2h8c1.105 0 2-.895 2-2V10c0-1.105-.895-2-2-2z"
+        stroke="rgba(255,255,255,0.7)"
+        strokeWidth={1.8}
+      />
+    </Svg>
+  );
 }
 
 export function AccountListItem({ account, colors }: AccountListItemProps) {
   const { unixTime, secondsRemaining, progress } = useTimer();
   const { removeAccount, umk } = useAccounts();
   const code = useDecryptedTotp(account, umk, unixTime);
+  const [copied, setCopied] = useState(false);
 
   const cardColor = getServiceColor(account.issuer, colors.accent);
 
@@ -88,6 +109,13 @@ export function AccountListItem({ account, colors }: AccountListItemProps) {
   const isWarning = secondsRemaining <= WARNING_THRESHOLD;
   const ringActiveColor = isWarning ? '#FCA5A5' : 'rgba(255,255,255,0.9)';
   const ringTrackColor = 'rgba(255,255,255,0.3)';
+
+  const handleCopy = useCallback(async () => {
+    const rawCode = code.replace(/\s/g, '');
+    await Clipboard.setStringAsync(rawCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [code]);
 
   // Swipe-to-delete
   const translateX = useSharedValue(0);
@@ -144,6 +172,9 @@ export function AccountListItem({ account, colors }: AccountListItemProps) {
   });
 
   const initial = account.issuer ? account.issuer.charAt(0).toUpperCase() : '?';
+  const [firstHalf, secondHalf] = code.length === 6
+    ? [code.slice(0, 3), code.slice(3)]
+    : [code, ''];
 
   return (
     <Animated.View
@@ -169,28 +200,43 @@ export function AccountListItem({ account, colors }: AccountListItemProps) {
               cardStyle,
             ]}
           >
-            {/* Left: initial badge + issuer/account */}
-            <View style={styles.leftSection}>
-              <View style={styles.initialBadge}>
-                <Text style={styles.initialText}>{initial}</Text>
-              </View>
-              <View style={styles.labelGroup}>
-                <Text style={styles.issuer} numberOfLines={1}>
-                  {account.issuer}
-                </Text>
-                {account.account ? (
-                  <Text style={styles.account} numberOfLines={1}>
-                    {account.account}
+            {/* Top row: initial badge + issuer/account + copy button */}
+            <View style={styles.topRow}>
+              <View style={styles.topLeft}>
+                <View style={styles.initialBadge}>
+                  <Text style={styles.initialText}>{initial}</Text>
+                </View>
+                <View style={styles.labelGroup}>
+                  <Text style={styles.issuer} numberOfLines={1}>
+                    {account.issuer}
                   </Text>
-                ) : null}
+                  {account.account ? (
+                    <Text style={styles.accountLabel} numberOfLines={1}>
+                      {account.account}
+                    </Text>
+                  ) : null}
+                </View>
               </View>
+
+              <Pressable
+                onPress={handleCopy}
+                style={styles.copyButton}
+                hitSlop={8}
+              >
+                {copied ? <CheckIcon /> : <CopyIcon />}
+              </Pressable>
             </View>
 
-            {/* Right: OTP code + ring */}
-            <View style={styles.rightSection}>
-              <Animated.Text style={[styles.code, animatedCodeStyle]}>
-                {formatCode(code)}
-              </Animated.Text>
+            {/* Center: large OTP code */}
+            <Animated.Text style={[styles.code, animatedCodeStyle]}>
+              {firstHalf}
+              {secondHalf ? (
+                <Text style={styles.codeSecondHalf}> {secondHalf}</Text>
+              ) : null}
+            </Animated.Text>
+
+            {/* Bottom: countdown ring */}
+            <View style={styles.bottomRow}>
               <View style={styles.ringContainer}>
                 <Svg width={RING_SIZE} height={RING_SIZE}>
                   <Circle
@@ -233,7 +279,7 @@ const styles = StyleSheet.create({
   deleteBackground: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#FF3B30',
-    borderRadius: 20,
+    borderRadius: 24,
     marginHorizontal: spacing.md,
     marginVertical: spacing.xs,
     justifyContent: 'center',
@@ -241,38 +287,40 @@ const styles = StyleSheet.create({
     paddingRight: 24,
   },
   container: {
+    borderRadius: 24,
+    padding: 20,
+    marginHorizontal: spacing.md,
+    marginVertical: spacing.xs,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: 20,
-    padding: spacing.md,
-    marginHorizontal: spacing.md,
-    marginVertical: spacing.xs,
-    minHeight: 88,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 4,
+    marginBottom: 16,
   },
-  leftSection: {
-    flex: 1,
+  topLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    marginRight: spacing.md,
+    gap: 12,
+    flex: 1,
+    marginRight: 8,
   },
   initialBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     backgroundColor: 'rgba(0,0,0,0.20)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   initialText: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
   },
   labelGroup: {
@@ -283,33 +331,44 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  account: {
-    fontSize: 12,
+  accountLabel: {
+    fontSize: 13,
     color: 'rgba(255,255,255,0.75)',
     marginTop: 2,
   },
-  rightSection: {
-    alignItems: 'flex-end',
-    gap: 6,
+  copyButton: {
+    width: 40,
+    height: 40,
+    backgroundColor: 'rgba(255,255,255,0.20)',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   code: {
-    fontSize: 26,
+    fontFamily: typography.codeDisplay.fontFamily,
+    fontSize: 40,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: typography.codeDisplay.fontFamily,
     fontVariant: ['tabular-nums'],
-    letterSpacing: 1.5,
+    letterSpacing: 2,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  codeSecondHalf: {
+    color: 'rgba(255,255,255,0.6)',
+  },
+  bottomRow: {
+    alignItems: 'flex-end',
   },
   ringContainer: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   seconds: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.85)',
     fontVariant: ['tabular-nums'],
-    marginTop: 2,
     textAlign: 'center',
     position: 'absolute',
   },
