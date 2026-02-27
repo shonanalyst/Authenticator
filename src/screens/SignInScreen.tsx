@@ -3,9 +3,12 @@ import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-nati
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
+import Constants from 'expo-constants';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useCloudSync } from '../contexts/CloudSyncContext';
 import { spacing } from '../theme/spacing';
+
+const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient';
 
 function GoogleLogo({ size = 20 }: { size?: number }) {
   return (
@@ -53,7 +56,7 @@ function ShieldIcon({ color, size = 56 }: { color: string; size?: number }) {
 
 export function SignInScreen() {
   const { colors } = useAppTheme();
-  const { signIn, isAuthLoading, syncError } = useCloudSync();
+  const { signIn, skipSignIn, isAuthLoading, syncError } = useCloudSync();
 
   const handleSignIn = async () => {
     try {
@@ -103,6 +106,15 @@ export function SignInScreen() {
               </>
             )}
           </Pressable>
+
+          {IS_EXPO_GO ? (
+            <Pressable
+              onPress={skipSignIn}
+              style={({ pressed }) => [styles.skipButton, { opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Text style={styles.skipText}>Skip for testing (Expo Go only)</Text>
+            </Pressable>
+          ) : null}
         </View>
       </SafeAreaView>
     </LinearGradient>
@@ -181,5 +193,14 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: '#1C1C1E',
+  },
+  skipButton: {
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  skipText: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
   },
 });

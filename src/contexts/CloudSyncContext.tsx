@@ -50,6 +50,7 @@ interface CloudSyncContextValue {
 
   // Actions
   signIn: () => Promise<void>;
+  skipSignIn: () => void;
   signOut: () => Promise<void>;
   backup: () => Promise<SyncResult>;
   restore: () => Promise<{ accounts: Account[]; timestamp: number }>;
@@ -66,6 +67,7 @@ const CloudSyncContext = createContext<CloudSyncContextValue>({
   isDeviceRooted: false,
   isSecurityCheckComplete: false,
   signIn: async () => {},
+  skipSignIn: () => {},
   signOut: async () => {},
   backup: async () => ({ success: false }),
   restore: async () => ({ accounts: [], timestamp: 0 }),
@@ -252,6 +254,10 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isDeviceRooted, isLocked, umk, isSignedIn]);
 
+  const skipSignIn = useCallback(() => {
+    setIsSignedIn(true);
+  }, []);
+
   const checkBackup = useCallback(async (): Promise<BackupInfo> => {
     if (!isSignedIn) return { exists: false };
     return checkBackupStatus();
@@ -269,6 +275,7 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
         isDeviceRooted,
         isSecurityCheckComplete,
         signIn,
+        skipSignIn,
         signOut,
         backup,
         restore,
