@@ -1,8 +1,8 @@
-import React, { useRef, useState, useCallback } from 'react';
-import { View, Text, FlatList, Pressable, StyleSheet, Dimensions, ViewToken } from 'react-native';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
+import { View, Text, FlatList, Pressable, StyleSheet, Dimensions, ViewToken, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Path, Rect } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { spacing } from '../theme/spacing';
 
@@ -79,10 +79,53 @@ function PageIcon({ type }: { type: string }) {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+// Animated dot — smoothly transitions width and color
+function AnimatedDot({ isActive }: { isActive: boolean }) {
+  const animWidth = useRef(new Animated.Value(isActive ? 32 : 8)).current;
+  const animOpacity = useRef(new Animated.Value(isActive ? 1 : 0.35)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(animWidth, {
+        toValue: isActive ? 32 : 8,
+        useNativeDriver: false,
+        tension: 80,
+        friction: 10,
+      }),
+      Animated.timing(animOpacity, {
+        toValue: isActive ? 1 : 0.35,
+        duration: 250,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, [isActive, animWidth, animOpacity]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.dot,
+        {
+          width: animWidth,
+          opacity: animOpacity,
+          backgroundColor: '#2563EB',
+        },
+      ]}
+    />
+  );
+}
+
 export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const flatListRef = useRef<FlatList>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Always reset to page 0 on mount (fixes "How It Works" showing last page)
+  useEffect(() => {
+    setCurrentIndex(0);
+    requestAnimationFrame(() => {
+      flatListRef.current?.scrollToIndex({ index: 0, animated: false });
+    });
+  }, []);
 
   const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     if (viewableItems.length > 0 && viewableItems[0].index != null) {
@@ -102,18 +145,23 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   const renderPage = useCallback(({ item }: { item: Page }) => (
     <View style={[styles.page, { width: SCREEN_WIDTH }]}>
-      <View style={styles.iconContainer}>
+      <View style={[styles.iconContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.9)' }]}>
         <PageIcon type={item.iconType} />
       </View>
-      <Text style={[styles.title, { color: '#111827' }]}>{item.title}</Text>
-      <Text style={[styles.description, { color: '#4B5563' }]}>{item.description}</Text>
+      <Text style={[styles.title, { color: colors.textPrimary }]}>{item.title}</Text>
+      <Text style={[styles.description, { color: colors.textSecondary }]}>{item.description}</Text>
     </View>
-  ), []);
+  ), [colors, isDark]);
 
   const isLastPage = currentIndex === pages.length - 1;
 
+  const Wrapper = isDark ? View : LinearGradient;
+  const wrapperProps = isDark
+    ? { style: [styles.gradient, { backgroundColor: colors.background }] }
+    : { colors: ['#EFF6FF', '#E0E7FF'] as const, style: styles.gradient };
+
   return (
-    <LinearGradient colors={['#EFF6FF', '#E0E7FF']} style={styles.gradient}>
+    <Wrapper {...(wrapperProps as any)}>
       <SafeAreaView style={styles.safeArea}>
         <FlatList
           ref={flatListRef}
@@ -126,20 +174,18 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={viewabilityConfig}
           bounces={false}
+          initialScrollIndex={0}
+          getItemLayout={(_, index) => ({
+            length: SCREEN_WIDTH,
+            offset: SCREEN_WIDTH * index,
+            index,
+          })}
         />
 
         <View style={styles.footer}>
           <View style={styles.indicators}>
             {pages.map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.dot,
-                  i === currentIndex
-                    ? { width: 32, backgroundColor: '#2563EB' }
-                    : { width: 8, backgroundColor: '#CBD5E1' },
-                ]}
-              />
+              <AnimatedDot key={i} isActive={i === currentIndex} />
             ))}
           </View>
 
@@ -156,7 +202,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </Pressable>
         </View>
       </SafeAreaView>
-    </LinearGradient>
+    </Wrapper>
   );
 }
 
@@ -177,7 +223,6 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.9)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.lg,

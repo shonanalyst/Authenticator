@@ -16,8 +16,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.shonanalyst.Authenticator",
+      "buildNumber": "1",
       "infoPlist": {
-        "NSFaceIDUsageDescription": "Use Face ID to unlock the authenticator and access your accounts."
+        "NSFaceIDUsageDescription": "Use Face ID to unlock the authenticator and access your accounts.",
+        "NSCameraUsageDescription": "Camera is used to scan QR codes for adding authenticator accounts."
       }
     },
     "android": {

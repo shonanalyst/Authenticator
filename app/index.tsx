@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   FlatList,
@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   TextInput,
   Text,
+  Animated,
 } from 'react-native';
 import { useNavigation } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
@@ -15,6 +16,8 @@ import { QrScannerModal } from '../src/components/QrScannerModal';
 import { AccountPreviewModal } from '../src/components/AccountPreviewModal';
 import { PremiumPaywallModal } from '../src/components/PremiumPaywallModal';
 import { Fab } from '../src/components/Fab';
+import { AddChoiceModal } from '../src/components/AddChoiceModal';
+import { ManualEntryModal } from '../src/components/ManualEntryModal';
 import { useAppTheme } from '../src/hooks/useAppTheme';
 import { useAccounts } from '../src/contexts/AccountsContext';
 import { usePremium } from '../src/contexts/PremiumContext';
@@ -22,7 +25,7 @@ import { useTimer } from '../src/contexts/TimerContext';
 import { OtpAuthParams, Account } from '../src/types/account';
 import { spacing } from '../src/theme/spacing';
 
-type ModalState = 'idle' | 'scanning' | 'preview' | 'paywall';
+type ModalState = 'idle' | 'addChoice' | 'scanning' | 'manual' | 'preview' | 'paywall';
 
 export default function AccountsScreen() {
   const { colors } = useAppTheme();
@@ -34,6 +37,27 @@ export default function AccountsScreen() {
   const [scannedParams, setScannedParams] = useState<OtpAuthParams | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Animated timer bar — smooth continuous animation
+  const animatedProgress = useRef(new Animated.Value(progress)).current;
+  const lastProgressRef = useRef(progress);
+
+  useEffect(() => {
+    const newProgress = progress;
+    const prev = lastProgressRef.current;
+    lastProgressRef.current = newProgress;
+
+    // When timer resets (progress goes from ~1 back to ~0), snap immediately
+    if (newProgress < prev - 0.5) {
+      animatedProgress.setValue(newProgress);
+    } else {
+      Animated.timing(animatedProgress, {
+        toValue: newProgress,
+        duration: 950,
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [progress, animatedProgress]);
+
   const filteredAccounts = searchQuery.trim()
     ? accounts.filter(
         (a) =>
@@ -43,30 +67,25 @@ export default function AccountsScreen() {
     : accounts;
 
   const handleAddPress = useCallback(() => {
-    if (!isPremium && accounts.length >= FREE_ACCOUNT_LIMIT) {
+    if (modalState === 'addChoice') {
+      setModalState('idle');
+    } else if (!isPremium && accounts.length >= FREE_ACCOUNT_LIMIT) {
       setModalState('paywall');
     } else {
-      setModalState('scanning');
+      setModalState('addChoice');
     }
-  }, [isPremium, accounts.length, FREE_ACCOUNT_LIMIT]);
+  }, [modalState, isPremium, accounts.length, FREE_ACCOUNT_LIMIT]);
 
   useEffect(() => {
     navigation.setOptions({
       headerTitle: () => (
-        <View>
-          <Text style={{ fontSize: 17, fontWeight: '600', color: colors.textPrimary }}>
-            Authenticator
-          </Text>
-          <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 1 }}>
-            {isPremium
-              ? `${accounts.length} accounts · Unlimited`
-              : `${accounts.length} / ${FREE_ACCOUNT_LIMIT} accounts`}
-          </Text>
-        </View>
+        <Text style={{ fontSize: 17, fontWeight: '600', color: colors.textPrimary }}>
+          Authenticator
+        </Text>
       ),
       headerRight: undefined,
     });
-  }, [navigation, accounts.length, isPremium, FREE_ACCOUNT_LIMIT, colors]);
+  }, [navigation, colors]);
 
   const handleScanned = useCallback((params: OtpAuthParams) => {
     setScannedParams(params);
@@ -75,6 +94,11 @@ export default function AccountsScreen() {
 
   const handleScannerClose = useCallback(() => {
     setModalState('idle');
+  }, []);
+
+  const handleManualEntry = useCallback((params: OtpAuthParams) => {
+    setScannedParams(params);
+    setModalState('preview');
   }, []);
 
   const handleConfirm = useCallback(async (params: OtpAuthParams) => {
@@ -94,7 +118,10 @@ export default function AccountsScreen() {
 
   const keyExtractor = useCallback((item: Account) => item.id, []);
 
-  const timerWidth = `${progress * 100}%` as const;
+  const timerWidthPercent = animatedProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -117,16 +144,16 @@ export default function AccountsScreen() {
         />
       </View>
 
-      {/* Timer bar — matches design */}
-      <View style={[styles.timerSection, { backgroundColor: colors.surface, borderBottomColor: colors.surfaceBorder }]}>
+      {/* Timer bar — only when there are accounts */}
+      {accounts.length > 0 && <View style={[styles.timerSection, { backgroundColor: colors.surface, borderBottomColor: colors.surfaceBorder }]}>
         <View style={styles.timerRow}>
           <Text style={[styles.timerLabel, { color: colors.textSecondary }]}>Refreshing in</Text>
           <Text style={[styles.timerCount, { color: colors.textPrimary }]}>{secondsRemaining}s</Text>
         </View>
         <View style={[styles.timerTrack, { backgroundColor: colors.surfaceBorder }]}>
-          <View style={[styles.timerBar, { width: timerWidth, backgroundColor: colors.accent }]} />
+          <Animated.View style={[styles.timerBar, { width: timerWidthPercent, backgroundColor: colors.accent }]} />
         </View>
-      </View>
+      </View>}
 
       {isLoading ? (
         <View style={styles.loading}>
@@ -142,16 +169,38 @@ export default function AccountsScreen() {
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          ListFooterComponent={
+            !isPremium ? (
+              <Text style={[styles.accountCount, { color: colors.textSecondary }]}>
+                {accounts.length} / {FREE_ACCOUNT_LIMIT} accounts used
+              </Text>
+            ) : null
+          }
         />
       )}
 
       {/* FAB */}
-      <Fab onPress={handleAddPress} colors={colors} />
+      <Fab onPress={handleAddPress} colors={colors} isOpen={modalState === 'addChoice'} />
+
+      <AddChoiceModal
+        visible={modalState === 'addChoice'}
+        onScanQR={() => setModalState('scanning')}
+        onManual={() => setModalState('manual')}
+        onClose={() => setModalState('idle')}
+        colors={colors}
+      />
 
       <QrScannerModal
         visible={modalState === 'scanning'}
         onScanned={handleScanned}
         onClose={handleScannerClose}
+        colors={colors}
+      />
+
+      <ManualEntryModal
+        visible={modalState === 'manual'}
+        onSubmit={handleManualEntry}
+        onClose={() => setModalState('idle')}
         colors={colors}
       />
 
@@ -224,6 +273,12 @@ const styles = StyleSheet.create({
   list: {
     paddingTop: spacing.sm,
     paddingBottom: 100,
+  },
+  accountCount: {
+    textAlign: 'center',
+    fontSize: 13,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
   },
   loading: {
     flex: 1,
