@@ -1,7 +1,6 @@
 import 'react-native-gesture-handler';
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import { ActivityIndicator, View, Text, Pressable, StyleSheet } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { Drawer } from 'expo-router/drawer';
 import { StatusBar } from 'expo-status-bar';
@@ -16,6 +15,7 @@ import { TimerProvider } from '../src/contexts/TimerContext';
 import { AccountsProvider } from '../src/contexts/AccountsContext';
 import { SecurityProvider, useSecurity } from '../src/contexts/SecurityContext';
 import { CloudSyncProvider } from '../src/contexts/CloudSyncContext';
+import { PremiumProvider } from '../src/contexts/PremiumContext';
 import { useOnboardingCheck } from '../src/hooks/useOnboardingCheck';
 import { useAppTheme } from '../src/hooks/useAppTheme';
 import { OnboardingFlow } from '../src/screens/OnboardingFlow';
@@ -82,7 +82,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
               styles.drawerItem,
               {
                 backgroundColor: isActive ? colors.accentDim : pressed ? colors.surface : 'transparent',
-                borderRadius: 12,
+                borderRadius: 16,
               },
             ]}
           >
@@ -104,38 +104,13 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   );
 }
 
-const SIGN_IN_SEEN_KEY = 'hasSeenSignIn';
-
 function RootGate() {
   const { colors, isDark } = useAppTheme();
   const { isLockEnabled, isLocked, isReady: isSecurityReady } = useSecurity();
   const { hasSeenOnboarding, isCheckingOnboarding, markOnboardingSeen } = useOnboardingCheck();
   const { isSignedIn } = useCloudSync();
 
-  const [hasSeenSignIn, setHasSeenSignIn] = useState(true); // default true to avoid flash
-  const [isCheckingSignIn, setIsCheckingSignIn] = useState(true);
-
-  useEffect(() => {
-    AsyncStorage.getItem(SIGN_IN_SEEN_KEY).then((value) => {
-      setHasSeenSignIn(value === 'true');
-      setIsCheckingSignIn(false);
-    });
-  }, []);
-
-  // Also mark as seen when user signs in via the screen
-  useEffect(() => {
-    if (isSignedIn && !hasSeenSignIn) {
-      AsyncStorage.setItem(SIGN_IN_SEEN_KEY, 'true');
-      setHasSeenSignIn(true);
-    }
-  }, [isSignedIn, hasSeenSignIn]);
-
-  const handleSignInSkip = useCallback(async () => {
-    await AsyncStorage.setItem(SIGN_IN_SEEN_KEY, 'true');
-    setHasSeenSignIn(true);
-  }, []);
-
-  if (isCheckingOnboarding || !isSecurityReady || isCheckingSignIn) {
+  if (isCheckingOnboarding || !isSecurityReady) {
     return (
       <View style={[styles.loading, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.accent} />
@@ -153,10 +128,10 @@ function RootGate() {
     );
   }
 
-  if (!hasSeenSignIn) {
+  if (!isSignedIn) {
     return (
       <>
-        <SignInScreen onSkip={handleSignInSkip} />
+        <SignInScreen />
         <StatusBar style={isDark ? 'light' : 'dark'} />
       </>
     );
@@ -227,7 +202,9 @@ export default function RootLayout() {
           <AccountsProvider>
             <SecurityProvider>
               <CloudSyncProvider>
-                <RootGate />
+                <PremiumProvider>
+                  <RootGate />
+                </PremiumProvider>
               </CloudSyncProvider>
             </SecurityProvider>
           </AccountsProvider>

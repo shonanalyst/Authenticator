@@ -1,14 +1,11 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Path, Rect } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useCloudSync } from '../contexts/CloudSyncContext';
 import { spacing } from '../theme/spacing';
-
-interface SignInScreenProps {
-  onSkip: () => void;
-}
 
 function GoogleLogo({ size = 20 }: { size?: number }) {
   return (
@@ -33,7 +30,7 @@ function GoogleLogo({ size = 20 }: { size?: number }) {
   );
 }
 
-function ShieldIcon({ color, size = 64 }: { color: string; size?: number }) {
+function ShieldIcon({ color, size = 56 }: { color: string; size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -54,7 +51,7 @@ function ShieldIcon({ color, size = 64 }: { color: string; size?: number }) {
   );
 }
 
-export function SignInScreen({ onSkip }: SignInScreenProps) {
+export function SignInScreen() {
   const { colors } = useAppTheme();
   const { signIn, isAuthLoading, syncError } = useCloudSync();
 
@@ -67,67 +64,56 @@ export function SignInScreen({ onSkip }: SignInScreenProps) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.content}>
-        <ShieldIcon color={colors.accent} />
+    <LinearGradient
+      colors={['#EFF6FF', '#E0E7FF']}
+      style={styles.gradient}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.content}>
+          <View style={styles.iconContainer}>
+            <ShieldIcon color="#2563EB" size={56} />
+          </View>
 
-        <Text style={[styles.title, { color: colors.textPrimary }]}>
-          Protect your accounts
-        </Text>
+          <Text style={styles.title}>Welcome to Authenticator</Text>
 
-        <Text style={[styles.description, { color: colors.textSecondary }]}>
-          Sign in with Google to securely back up your authenticator codes to Google Drive. Your data is encrypted and only you can access it.
-        </Text>
-
-        {syncError ? (
-          <Text style={[styles.errorText, { color: colors.warning }]}>{syncError}</Text>
-        ) : null}
-      </View>
-
-      <View style={styles.footer}>
-        <Pressable
-          onPress={handleSignIn}
-          disabled={isAuthLoading}
-          style={({ pressed }) => [
-            styles.googleButton,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.surfaceBorder,
-              opacity: pressed ? 0.8 : isAuthLoading ? 0.6 : 1,
-            },
-          ]}
-        >
-          {isAuthLoading ? (
-            <ActivityIndicator size="small" color={colors.textPrimary} />
-          ) : (
-            <>
-              <GoogleLogo />
-              <Text style={[styles.googleButtonText, { color: colors.textPrimary }]}>
-                Sign in with Google
-              </Text>
-            </>
-          )}
-        </Pressable>
-
-        <Pressable
-          onPress={onSkip}
-          disabled={isAuthLoading}
-          style={({ pressed }) => [
-            styles.skipButton,
-            { opacity: pressed ? 0.6 : 1 },
-          ]}
-        >
-          <Text style={[styles.skipText, { color: colors.textSecondary }]}>
-            Skip for now
+          <Text style={styles.description}>
+            Sign in with Google to securely back up your 2FA codes. Your data is encrypted end-to-end.
           </Text>
-        </Pressable>
-      </View>
-    </SafeAreaView>
+
+          {syncError ? (
+            <Text style={[styles.errorText, { color: colors.warning }]}>{syncError}</Text>
+          ) : null}
+        </View>
+
+        <View style={styles.footer}>
+          <Pressable
+            onPress={handleSignIn}
+            disabled={isAuthLoading}
+            style={({ pressed }) => [
+              styles.googleButton,
+              { opacity: pressed ? 0.85 : isAuthLoading ? 0.6 : 1 },
+            ]}
+          >
+            {isAuthLoading ? (
+              <ActivityIndicator size="small" color="#1C1C1E" />
+            ) : (
+              <>
+                <GoogleLogo size={22} />
+                <Text style={styles.googleButtonText}>Continue with Google</Text>
+              </>
+            )}
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  gradient: {
+    flex: 1,
+  },
+  safeArea: {
     flex: 1,
   },
   content: {
@@ -136,17 +122,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
   },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 6,
+  },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '700',
     textAlign: 'center',
-    marginTop: spacing.lg,
+    color: '#111827',
     marginBottom: spacing.md,
   },
   description: {
     fontSize: 16,
     lineHeight: 24,
     textAlign: 'center',
+    color: '#4B5563',
     paddingHorizontal: spacing.sm,
   },
   errorText: {
@@ -158,27 +159,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl,
     alignItems: 'center',
-    gap: spacing.md,
   },
   googleButton: {
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
     gap: spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   googleButtonText: {
     fontSize: 17,
     fontWeight: '600',
-  },
-  skipButton: {
-    paddingVertical: spacing.sm,
-  },
-  skipText: {
-    fontSize: 15,
-    fontWeight: '500',
+    color: '#1C1C1E',
   },
 });
