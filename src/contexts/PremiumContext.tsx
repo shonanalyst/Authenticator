@@ -7,33 +7,33 @@ import React, {
   useRef,
 } from 'react';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
-import {
-  initConnection,
-  endConnection,
-  fetchProducts,
-  requestPurchase,
-  getAvailablePurchases,
-  finishTransaction,
-  purchaseUpdatedListener,
-  purchaseErrorListener,
-  type Purchase,
-  type Product,
-} from 'react-native-iap';
 import {
   FREE_ACCOUNT_LIMIT,
   PREMIUM_SECURESTORE_KEY,
   getPremiumProductId,
 } from '../constants/premium';
 
+// Detect Expo Go — NitroModules (react-native-iap) crash on Expo Go
+const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient';
+
 interface PremiumContextValue {
   isPremium: boolean;
   isLoading: boolean;
   isPurchasing: boolean;
-  products: Product[];
+  products: IAPProduct[];
   purchasePremium: () => Promise<void>;
   restorePurchases: () => Promise<void>;
   FREE_ACCOUNT_LIMIT: number;
+}
+
+// Minimal product type used internally (avoids importing from react-native-iap at top level)
+interface IAPProduct {
+  productId: string;
+  displayPrice?: string;
+  localizedPrice?: string;
+  title?: string;
 }
 
 const PremiumContext = createContext<PremiumContextValue | null>(null);
@@ -44,13 +44,36 @@ export function usePremium(): PremiumContextValue {
   return ctx;
 }
 
-export function PremiumProvider({ children }: { children: React.ReactNode }) {
+// ─── Expo Go stub (no IAP, always free) ──────────────────────────────────────
+function ExpoGoProvider({ children }: { children: React.ReactNode }) {
+  const noop = useCallback(async () => {}, []);
+  return (
+    <PremiumContext.Provider
+      value={{
+        isPremium: false,
+        isLoading: false,
+        isPurchasing: false,
+        products: [],
+        purchasePremium: noop,
+        restorePurchases: noop,
+        FREE_ACCOUNT_LIMIT,
+      }}
+    >
+      {children}
+    </PremiumContext.Provider>
+  );
+}
+
+// ─── Real IAP provider (native build only) ───────────────────────────────────
+function NativeIAPProvider({ children }: { children: React.ReactNode }) {
   const [isPremium, setIsPremium] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
-  const purchaseListenerRef = useRef<ReturnType<typeof purchaseUpdatedListener> | null>(null);
-  const errorListenerRef = useRef<ReturnType<typeof purchaseErrorListener> | null>(null);
+  const [products, setProducts] = useState<IAPProduct[]>([]);
+
+  // Lazy refs for listener handles — typed as any to avoid top-level import
+  const purchaseListenerRef = useRef<any>(null);
+  const errorListenerRef = useRef<any>(null);
 
   const markPremium = useCallback(async () => {
     setIsPremium(true);
@@ -62,16 +85,17 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
 
     async function setup() {
       try {
-        // Check cached premium status first for fast startup
+        // Dynamic import keeps NitroModules from loading in Expo Go
+        const iap = await import('react-native-iap');
+
+        // Check cached premium first for fast startup
         const cached = await SecureStore.getItemAsync(PREMIUM_SECURESTORE_KEY);
-        if (cached === 'true' && mounted) {
-          setIsPremium(true);
-        }
+        if (cached === 'true' && mounted) setIsPremium(true);
 
-        await initConnection();
+        await iap.initConnection();
 
-        // Verify with store (handles reinstalls, refunds)
-        const purchases = await getAvailablePurchases();
+        // Verify with store (handles reinstalls / refunds)
+        const purchases = await iap.getAvailablePurchases();
         const productId = getPremiumProductId();
         const hasPremium = purchases.some((p) => p.productId === productId);
         if (mounted) {
@@ -84,23 +108,20 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Fetch product info for price display
-        const fetchedProducts = await fetchProducts({
-          skus: [productId],
-          type: 'in-app',
-        });
-        if (mounted && fetchedProducts) setProducts(fetchedProducts as Product[]);
+        const fetched = await iap.fetchProducts({ skus: [productId], type: 'in-app' });
+        if (mounted && fetched) setProducts(fetched as unknown as IAPProduct[]);
 
         // Listen for purchase updates
-        purchaseListenerRef.current = purchaseUpdatedListener(
-          async (purchase: Purchase) => {
+        purchaseListenerRef.current = iap.purchaseUpdatedListener(
+          async (purchase: any) => {
             if (purchase.productId === productId) {
-              await finishTransaction({ purchase, isConsumable: false });
+              await iap.finishTransaction({ purchase, isConsumable: false });
               await markPremium();
             }
           }
         );
 
-        errorListenerRef.current = purchaseErrorListener((error) => {
+        errorListenerRef.current = iap.purchaseErrorListener((error: any) => {
           console.warn('[IAP] Purchase error:', error.message);
         });
       } catch (err) {
@@ -116,26 +137,20 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       purchaseListenerRef.current?.remove();
       errorListenerRef.current?.remove();
-      endConnection();
+      import('react-native-iap').then((iap) => iap.endConnection()).catch(() => {});
     };
   }, [markPremium]);
 
   const purchasePremium = useCallback(async () => {
     setIsPurchasing(true);
     try {
+      const iap = await import('react-native-iap');
       const productId = getPremiumProductId();
       if (Platform.OS === 'ios') {
-        await requestPurchase({
-          request: { apple: { sku: productId } },
-          type: 'in-app',
-        });
+        await iap.requestPurchase({ request: { apple: { sku: productId } }, type: 'in-app' });
       } else {
-        await requestPurchase({
-          request: { google: { skus: [productId] } },
-          type: 'in-app',
-        });
+        await iap.requestPurchase({ request: { google: { skus: [productId] } }, type: 'in-app' });
       }
-      // Result handled by purchaseUpdatedListener
     } catch (err) {
       console.warn('[IAP] requestPurchase error:', err);
     } finally {
@@ -146,10 +161,10 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
   const restorePurchases = useCallback(async () => {
     setIsPurchasing(true);
     try {
-      const purchases = await getAvailablePurchases();
+      const iap = await import('react-native-iap');
+      const purchases = await iap.getAvailablePurchases();
       const productId = getPremiumProductId();
-      const hasPremium = purchases.some((p) => p.productId === productId);
-      if (hasPremium) {
+      if (purchases.some((p) => p.productId === productId)) {
         await markPremium();
       }
     } catch (err) {
@@ -174,4 +189,12 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
       {children}
     </PremiumContext.Provider>
   );
+}
+
+// ─── Exported provider — picks the right implementation ──────────────────────
+export function PremiumProvider({ children }: { children: React.ReactNode }) {
+  if (IS_EXPO_GO) {
+    return <ExpoGoProvider>{children}</ExpoGoProvider>;
+  }
+  return <NativeIAPProvider>{children}</NativeIAPProvider>;
 }
